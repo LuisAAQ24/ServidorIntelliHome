@@ -12,9 +12,8 @@ def desencriptar_archivo(archivo, clave):
     contenido_desencriptado = cipher_suite.decrypt(contenido_encriptado)
     
     # Devolver el contenido desencriptado
-
     return contenido_desencriptado.decode('utf-8')
 
 # Ejemplo de uso
-contenido_desencriptado = desencriptar_archivo('intento.txt', 'oYNJjntI5kThiiL7DHgCxJcXppI5dT2v3tafJozxTBI=')
-print(contenido_desencriptado[0])
+
+print(desencriptar_archivo('datos.txt', 'ygvUS3jxoJxxRuuf9hnHYO1S8FDJ5wRbT_IiWHS87Cg='))

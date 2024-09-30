@@ -14,4 +14,4 @@ def encriptar_archivo(archivo, clave_secreta):
     with open(archivo, 'wb') as file:
         file.write(contenido_encriptado)
 
-encriptar_archivo("intento.txt",generar_clave_secreta())
+encriptar_archivo("datos.txt",generar_clave_secreta())

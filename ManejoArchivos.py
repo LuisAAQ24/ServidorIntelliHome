@@ -1,5 +1,5 @@
 def LeerArchivo():
-    ruta="Prueba.txt"
+    ruta="Intento.txt"
     archivo=open(ruta) # coloca el contenido en memoria
     contenido=archivo.readlines()
     archivo.close()

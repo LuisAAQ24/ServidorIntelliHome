@@ -3,7 +3,9 @@ import threading
 from cryptography.fernet import Fernet
 
 class ChatServer:
-    def __init__(self, host='0.0.0.0', port=2020):
+    print(1)
+    def __init__(self, host='0.0.0.0', port=6060):
+        print(host,port)
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.bind((host, port))
@@ -39,17 +41,33 @@ class ChatServer:
         while True:
             try:
                 # Recibir mensaje del cliente
-                message = client_socket.recv(1024).decode('utf-8')
+                message = client_socket.recv(1024).decode('utf-8').strip()
                 if message:
                     print(f"Cliente dice: {message}")
 
-                    if self.is_message_in_encrypted_file(message.strip()):
-                        response = "true\n"
-
-                    else:
-                        # Escribir mensaje cifrado en el archivo
-                        #self.write_encrypted_message_to_file(message + "\n")
+                    # Dividir el mensaje recibido en tipo y datos
+                    message_parts = message.split(",")
+                    print(message_parts)
+                    if len(message_parts) < 1:
                         response = "false\n"
+                    else:
+                        tipo_mensaje = message_parts[0]  # "login" o "registro"
+                        dato1_cliente = message_parts[1]  # Dato1 siempre debe coincidir
+                        segundo_dato_cliente = message_parts[2]  # Dato2 o Dato3
+                        
+                        if tipo_mensaje == "registro":
+                            # Si es un registro, almacenar el mensaje
+                            self.write_encrypted_message_to_file(message.strip())
+                            response = "registro almacenado\n"
+                        elif tipo_mensaje == "login":
+                            # Verificar el mensaje en el archivo para login
+                            if self.is_message_in_encrypted_file(dato1_cliente, segundo_dato_cliente):
+                                response = "true\n"
+                            else:
+                                print("no encontrado")
+                                response = "false\n"
+                        else:
+                            response = "tipo de mensaje no válido\n"
 
                     # Enviar respuesta de vuelta al cliente
                     print(f"Respuesta enviada: {response}")
@@ -70,20 +88,32 @@ class ChatServer:
             file.write(encrypted_message + b'\n')
 
     # Función para verificar si un mensaje ya está en el archivo cifrado
-    def is_message_in_encrypted_file(self, message):
+    def is_message_in_encrypted_file(self, dato1_cliente, segundo_dato_cliente):
+        print("verificación")
         try:
             with open('datos.txt', 'rb') as file:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
                     try:
+                        print("verificación 2")
+                        # Desencriptar la línea almacenada
                         decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
-                        if decrypted_message == message:
+                        
+                        # Dividir la línea desencriptada
+                        stored_parts = decrypted_message.split(",")
+                        
+                          
+                        dato1_archivo = stored_parts[1]
+                        segundo_dato_archivo = stored_parts[2]  
+                        tercer_dato_archivo = stored_parts[3] 
+                            
+                        if (segundo_dato_cliente == dato1_archivo and (dato1_cliente == segundo_dato_archivo or dato1_cliente == tercer_dato_archivo)):
                             return True
                     except Exception as e:
                         print(f"Error al desencriptar una línea: {e}")
             return False
         except FileNotFoundError:
-            return False  # Si el archivo no existe, el mensaje no está
+            return False 
 
     def close_server(self):
         for client in self.clients:

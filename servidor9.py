@@ -1,30 +1,29 @@
 import socket
 import threading
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from cryptography.fernet import Fernet
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse, parse_qs
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+import uuid  # Para generar un token único
+from urllib.parse import urlparse, parse_qs  # Para procesar la URL
 
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
+        print(host, port)
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.bind((host, port))
             self.server_socket.listen(5)
             print(f"Servidor escuchando en {host}:{port}")
             self.clients = []
-            self.key = self.load_key()  # Cargar clave existente
+            self.pending_confirmations = {}  # Almacenar las confirmaciones pendientes
+            self.contrasena= ""
+            self.correo= ""
+            # Cargar clave de cifrado existente
+            self.key = self.load_key()
             self.cipher = Fernet(self.key)
 
             self.thread = threading.Thread(target=self.accept_connections)
             self.thread.start()
-
-            # Iniciar el servidor HTTP para manejar confirmaciones
-            self.http_server = HTTPServer(('localhost', 6060), ConfirmationHandler)
-            threading.Thread(target=self.http_server.serve_forever).start()
-
         except Exception as e:
             print(f"Error al iniciar el servidor: {e}")
 
@@ -33,7 +32,7 @@ class ChatServer:
             with open('clave.key', 'rb') as key_file:
                 return key_file.read()
         except FileNotFoundError:
-            raise FileNotFoundError("Error: La clave de cifrado no se encuentra.")
+            raise FileNotFoundError("Error: La clave de cifrado no se encuentra. Asegúrate de que el archivo 'clave.key' existe.")
 
     def accept_connections(self):
         while True:
@@ -48,160 +47,174 @@ class ChatServer:
                 message = client_socket.recv(1024).decode('utf-8').strip()
                 if message:
                     print(f"Cliente dice: {message}")
+                    if message.startswith("GET"):
+                        self.handle_http_request(message, client_socket)
+                        continue 
                     message_parts = message.split(",")
                     if len(message_parts) < 1:
                         response = "false\n"
                     else:
-                        tipo_mensaje = message_parts[0]  # "login" o "registro"
-                        dato1_cliente = message_parts[1]  # Dato1 siempre debe coincidir
-                        segundo_dato_cliente = message_parts[2]  # Dato2 o Dato3
-                        
-                        if tipo_mensaje == "registro":
+                        tipo_mensaje = message_parts[0]  # "configuracion", "registro" o "login"
+                        if tipo_mensaje == "configuracion":
+                            self.correo = message_parts[1]
+                            self.contrasena = message_parts[2]
+                            
+                            # Verificar si el correo existe
+                            if self.verificarCorreo(self.correo):
+                                # Omitir token y enviar correo directamente
+                                confirmation_link = f"http://172.18.173.122:6060/confirm"
+                                subject = "Confirmación de Cambios de Contraseña"
+                                content = f"Se ha solicitado un cambio de contraseña. Por favor, confirma haciendo clic en el siguiente enlace: {confirmation_link}"
+                                self.send_email(self.correo, subject, content)
+
+                                response = "Enviado\n"
+                            else:
+                                response = "Fallo\n"
+
+                        elif tipo_mensaje == "registro":
                             if self.handle_registration(message_parts):
                                 response = "false\n"
                             else:
+                                self.write_encrypted_message_to_file(message.strip())
                                 response = "true\n"
                         elif tipo_mensaje == "login":
-                            if self.is_message_in_encrypted_file(dato1_cliente, segundo_dato_cliente):
+                            if self.verificarLogin(message_parts[1], message_parts[2]):
                                 response = "true\n"
-                            else:
-                                response = "false\n"
-                        elif tipo_mensaje == "confirmación":
-                            # Cambié aquí para enviar el correo de confirmación de contraseña
-                            if self.handle_registration(message_parts):
-                                if self.send_confirmation_email(dato1_cliente, segundo_dato_cliente):
-                                    response = "true\n"
-                                else:
-                                    response = "false\n"
                             else:
                                 response = "false\n"
                         else:
                             response = "tipo de mensaje no válido\n"
 
+                    print(f"Respuesta enviada: {response}")
                     client_socket.send(response.encode('utf-8'))
                 else:
                     break
+
+            except ConnectionResetError:
+                # Manejar el error cuando el cliente cierra la conexión abruptamente
+                print("El cliente cerró la conexión abruptamente.")
+                break
             except Exception as e:
+                print(f"Error al manejar el cliente: {e}")
                 break
 
-        client_socket.close()
-        self.clients.remove(client_socket)
-
-    def handle_registration(self, message_parts):
-        email = message_parts[1]  # Contraseña
-        contrasena = message_parts[2]     # Email
-  # Username
-
-        # Verificar si ya existe el username, email o contraseña
-        if self.is_message_in_encrypted_file2(email, contrasena):
-            return True  # Ya existe un registro
-        else:
-            self.write_encrypted_message_to_file(",".join(message_parts))
-            # Eliminé el envío de correo al registrarse
-            return False
-
-    # Función para enviar correos electrónicos de confirmación de contraseña
-    def send_confirmation_email(self, to_email):
-        subject = "Confirmación de Contraseña"
-        body = f"Hola, Se ha solicitado un cambio de contraseña. Por favor, confirma este cambio haciendo clic en el siguiente enlace:\n\nhttp://localhost:6060/confirm?user="
-        
-        return self.send_email(to_email, subject, body)
-
-    # Función para enviar correos electrónicos
-    def send_email(self, to_email, subject, body):
-        smtp_host = 'smtp.gmail.com'  # Servidor SMTP de Gmail
-        smtp_port = 587  # Puerto para TLS
-        from_email = 'intellihome058@gmail.com'  # Tu dirección de correo
-        password = 'Abc12345$'  # Tu contraseña de correo
-
-        # Crea el mensaje
-        msg = MIMEMultipart()
-        msg['From'] = from_email
-        msg['To'] = to_email
-        msg['Subject'] = subject
-
-        # Agrega el cuerpo del mensaje
-        msg.attach(MIMEText(body, 'plain'))
-
-        try:
-            # Conéctate al servidor
-            server = smtplib.SMTP(smtp_host, smtp_port)
-            server.starttls()  # Inicia TLS
-            server.login(from_email, password)  # Inicia sesión
-            server.send_message(msg)  # Envía el correo
-            print('Correo enviado con éxito!')
-            return True
-        except Exception as e:
-            print(f'Error al enviar el correo: {e}')
-            return False
-        finally:
-            server.quit()  # Cierra la conexión
-
-    # Función para escribir un mensaje cifrado en el archivo
-    def write_encrypted_message_to_file(self, message):
-        encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
-        with open('datos.txt', 'ab') as file:  # 'ab' para append en modo binario
-            file.write(encrypted_message + b'\n')
-
-    # Función para verificar si un mensaje ya está en el archivo cifrado
-    def is_message_in_encrypted_file(self, dato1_cliente, segundo_dato_cliente):
+    def verificarCorreo(self, correo):
+        """Verifica si el correo existe en el archivo de datos."""
         try:
             with open('datos.txt', 'rb') as file:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
-                    try:
-                        decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
-                        stored_parts = decrypted_message.split(",")
-                        dato1_archivo = stored_parts[1]
-                        segundo_dato_archivo = stored_parts[2]
-                        if (segundo_dato_cliente == dato1_archivo and (dato1_cliente == segundo_dato_archivo)):
-                            return True
-                    except Exception as e:
-                        print(f"Error al desencriptar una línea: {e}")
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    stored_parts = decrypted_message.split(",")
+                    if correo == stored_parts[2]:  # Correo en la posición correspondiente
+                        return True
             return False
         except FileNotFoundError:
-            return False 
+            return False
+
+    def send_email(self, to_email, subject, content):
+        message = Mail(from_email='intellihome060@gmail.com',
+                       to_emails=to_email,
+                       subject=subject,
+                       plain_text_content=content
+                       )
+        try:
+            sg = SendGridAPIClient('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')  
+            response = sg.send(message)
+            print(f"Correo enviado: {response.status_code}")
+        except Exception as e:
+            print(f"Error al enviar correo: {e}")
+
+    def handle_registration(self, message_parts):
+        password = message_parts[1]
+        email = message_parts[2]
+        username = message_parts[3]
+        if self.is_message_in_encrypted_file2(email, username):
+            return True  # Ya existe un registro
+        else:
+            self.write_encrypted_message_to_file(",".join(message_parts))
+            return False
+
+    def write_encrypted_message_to_file(self, message):
+        encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
+        with open('datos.txt', 'ab') as file:
+            file.write(encrypted_message + b'\n')
+
+    def verificarLogin(self, dato1_cliente, segundo_dato_cliente):
+        try:
+            with open('datos.txt', 'rb') as file:
+                encrypted_lines = file.readlines()
+                for encrypted_line in encrypted_lines:
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    stored_parts = decrypted_message.split(",")
+                    if (segundo_dato_cliente == stored_parts[1] and
+                            (dato1_cliente == stored_parts[2] or dato1_cliente == stored_parts[3])):
+                        return True
+            return False
+        except FileNotFoundError:
+            return False
 
     def is_message_in_encrypted_file2(self, dato1_cliente, segundo_dato_cliente):
         try:
             with open('datos.txt', 'rb') as file:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
-                    try:
-                        decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
-                        stored_parts = decrypted_message.split(",")
-                        segundo_dato_archivo = stored_parts[2]
-                        tercer_dato_archivo = stored_parts[3] 
-                        if segundo_dato_cliente == tercer_dato_archivo or dato1_cliente == segundo_dato_archivo:
-                            return True
-                    except Exception as e:
-                        print(f"Error al desencriptar una línea: {e}")
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    stored_parts = decrypted_message.split(",")
+                    if (segundo_dato_cliente == stored_parts[2] or dato1_cliente == stored_parts[3]):
+                        return True
             return False
         except FileNotFoundError:
-            return False 
+            return False
 
     def close_server(self):
         for client in self.clients:
             client.close()
         self.server_socket.close()
 
-class ConfirmationHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        parsed_path = urlparse(self.path)
-        query_params = parse_qs(parsed_path.query)
+    def handle_http_request(self, request, client_socket):
+        try:
+            print("solicitud")
+            # Analiza la solicitud HTTP
+            headers = request.splitlines()
+            request_line = headers[0]
+            method, path, _ = request_line.split()
+            # Ejecuta la función de actualización de la contraseña siempre que se reciba una solicitud
+            self.update_password()
+            
+            # Envía una respuesta de confirmación al cliente
+            response = "Confirmada\n"
+            print(response)
+            client_socket.send(response.encode('utf-8'))
 
-        # Obtener el nombre de usuario del parámetro de consulta
-        username = query_params.get('user', [None])[0]
-        if username:
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(b'Gracias por confirmar tu registro!')
-            print(f"El usuario {username} ha confirmado su registro.")
-        else:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b'Error: No se proporciono el nombre de usuario.')
+        except Exception as e:
+            # Si ocurre algún error, envía una respuesta de error
+            print(f"Error en la solicitud HTTP: {e}")
+            client_socket.send(b"HTTP/1.1 404 Not Found\n\nRuta no encontrada.")
+
+    def update_password(self):
+        print("Actualiza la contraseña en el archivo de datos.")
+        try:
+            with open('datos.txt', 'rb') as file:
+                encrypted_lines = file.readlines()
+
+            updated_lines = []
+            for encrypted_line in encrypted_lines:
+                decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                stored_parts = decrypted_message.split(",")
+                if self.correo == stored_parts[2]:  # Correoo en la posición correspondiente
+                    # Actualiza la contraseña
+                    stored_parts[1] = self.contrasena 
+                    updated_message = ",".join(stored_parts)
+                    updated_lines.append(self.cipher.encrypt(updated_message.encode('utf-8')) + b'\n')
+                else:
+                    updated_lines.append(encrypted_line)
+
+            with open('datos.txt', 'wb') as file:
+                file.writelines(updated_lines)
+
+        except FileNotFoundError:
+            print("Error: El archivo de datos no se encuentra.")
 
 if __name__ == "__main__":
     server = ChatServer()

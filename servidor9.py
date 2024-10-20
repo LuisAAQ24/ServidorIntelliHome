@@ -216,5 +216,6 @@ class ChatServer:
         except FileNotFoundError:
             print("Error: El archivo de datos no se encuentra.")
 
+
 if __name__ == "__main__":
     server = ChatServer()

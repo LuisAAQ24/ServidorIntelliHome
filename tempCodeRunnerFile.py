@@ -171,7 +171,7 @@ class ChatServer:
         except FileNotFoundError:
             return "Error: No se encontró el archivo de alquileres\n"
         except Exception as e:
-                return f"Error al leer los alquileres: {e}\n"
+            return f"Error al leer los alquileres: {e}\n"
     def verificarLogin(self, dato1_cliente, segundo_dato_cliente):
         try:
             with open('datos.txt', 'rb') as file:

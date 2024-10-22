@@ -27,19 +27,19 @@ class ChatServer:
         self.thread.start()
         puertoSerial = "COM5"
         try:
-            self.arduino = serial.Serial(puertoSerial,9600)
-            print("conectado a arduino")
-        except:
-            print("Sin conectar a arduino")
+            self.arduino = serial.Serial(puertoSerial, 9600)
+            print(f"Conectado a Arduino en el puerto {puertoSerial}")
+        except serial.SerialException as e:
+            print(f"Error al conectar con Arduino: {e}")
+        except Exception as e:
+            print(f"Otro error: {e}")
     def load_key(self):
         try:
             with open('clave.key', 'rb') as key_file:
                 return key_file.read()
         except FileNotFoundError:
             raise FileNotFoundError("Error: La clave de cifrado no se encuentra. Asegúrate de que el archivo 'clave.key' existe.")
-    def conexionArduino(self, mensaje):
-        if self.arduino != None:
-            self.arduino.write(mensaje.encode("utf-8"))
+
     def accept_connections(self):
         while True:
             client_socket, addr = self.server_socket.accept()
@@ -57,39 +57,40 @@ class ChatServer:
                         self.handle_http_request(message, client_socket)
                         continue 
                     message_parts = message.split(",")
-                    if len(message_parts) < 1:
-                        response = "false\n"
-                    else:
-                        tipo_mensaje = message_parts[0]  # "configuracion", "registro" o "login"
-                        if tipo_mensaje == "configuracion":
-                            self.correo = message_parts[1]
-                            self.contrasena = message_parts[2]
+                    tipo_mensaje = message_parts[0]  # "configuracion", "registro" o "login"
+                    response = "tipo de mensaje no válido\n"
+                    if tipo_mensaje == "configuracion":
+                        self.correo = message_parts[1]
+                        self.contrasena = message_parts[2]
                             
                             # Verificar si el correo existe
-                            if self.verificarCorreo(self.correo):
+                        if self.verificarCorreo(self.correo):
                                 # Omitir token y enviar correo directamente
-                                confirmation_link = f"http://172.18.173.122:6060/confirm"
-                                subject = "Confirmación de Cambios de Contraseña"
-                                content = f"Se ha solicitado un cambio de contraseña. Por favor, confirma haciendo clic en el siguiente enlace: {confirmation_link}"
-                                self.send_email(self.correo, subject, content)
+                            confirmation_link = f"http://172.18.173.122:6060/confirm"
+                            subject = "Confirmación de Cambios de Contraseña"
+                            content = f"Se ha solicitado un cambio de contraseña. Por favor, confirma haciendo clic en el siguiente enlace: {confirmation_link}"
+                            self.send_email(self.correo, subject, content)
 
-                                response = "Enviado\n"
-                            else:
-                                response = "Fallo\n"
-
-                        elif tipo_mensaje == "registro":
-                            if self.handle_registration(message_parts):
-                                response = "false\n"
-                            else:
-                                self.write_encrypted_message_to_file(message.strip())
-                                response = "true\n"
-                        elif tipo_mensaje == "login":
-                            if self.verificarLogin(message_parts[1], message_parts[2]):
-                                response = "true\n"
-                            else:
-                                response = "false\n"
+                            response = "Enviado\n"
                         else:
-                            response = "tipo de mensaje no válido\n"
+                            response = "Fallo\n"
+
+                    elif tipo_mensaje == "leds":
+                        self.conexionArduino(message_parts[1])
+
+                    elif tipo_mensaje == "registro":
+                        if self.handle_registration(message_parts):
+                            response = "false\n"
+                        else:
+                            self.write_encrypted_message_to_file(message.strip())
+                            response = "true\n"
+                    elif tipo_mensaje == "login":
+                        if self.verificarLogin(message_parts[1], message_parts[2]):
+                            response = "true\n"
+                        else:
+                            response = "false\n"
+                    else:
+                        response = "tipo de mensaje no válido\n"
 
                     print(f"Respuesta enviada: {response}")
                     client_socket.send(response.encode('utf-8'))
@@ -117,7 +118,9 @@ class ChatServer:
             return False
         except FileNotFoundError:
             return False
-
+    def conexionArduino(self, mensaje):
+        if self.arduino != None:
+            self.arduino.write(mensaje.encode("utf-8"))
     def send_email(self, to_email, subject, content):
         message = Mail(from_email='intellihome060@gmail.com',
                        to_emails=to_email,

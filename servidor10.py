@@ -133,7 +133,7 @@ class ChatServer:
                        plain_text_content=content
                        )
         try:
-            sg = SendGridAPIClient('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')  
+            sg = SendGridAPIClient('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')  
             response = sg.send(message)
             print(f"Correo enviado: {response.status_code}")
         except Exception as e:
@@ -151,11 +151,8 @@ class ChatServer:
 
     def write_encrypted_message_to_file(self, message, file):
         try:
-            # Cifra el mensaje
             encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
-            # Abre el archivo en modo binario para agregar el mensaje cifrado
             with open(file, 'ab') as file:
-                # Escribe el mensaje cifrado en el archivo y añade una nueva línea
                 file.write(encrypted_message + b'\n')
         except Exception as e:
             print(f"Error al escribir en el archivo: {e}")
@@ -167,23 +164,23 @@ class ChatServer:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
                     decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
-                    alquiler_data = decrypted_message.split(",")  # Suponiendo que los datos están separados por comas
+                    alquiler_data = decrypted_message.split(",") 
                     
-                    # Validar que hay suficientes datos
-                    
-                        # Extraer datos necesarios
-                    descripción = alquiler_data[1]  # "publi01", "publi02", ...
-                    capacidad = alquiler_data[2]  # "4", "7", "10"
-                    ubicacion = alquiler_data[3]  # [V36V+H84, Provincia de Cartago, ...]
-                    amenidades =  alquiler_data[4]    #",".join(alquiler_data[4:-2])  # Unir amenidades en caso de que haya varias
-                    precio = alquiler_data[5]  # "3226", "4233", ...
-                    reglas = alquiler_data[6]  # "regla01", "regla02", ...
 
-                        # Formatear como "alquiler1,dato1,dato2,dato3,dato4,dato5,dato6"
-                    alquiler = f"{descripción},{capacidad},{ubicacion},{amenidades},{precio},{reglas}"
+                    descripción = alquiler_data[1] 
+                    capacidad = alquiler_data[2]  
+                    ubicacion = alquiler_data[3]  
+                    amenidades =  alquiler_data[4]    
+                    precio = alquiler_data[5] 
+                    reglas = alquiler_data[6] 
+                    fechainicio = alquiler_data[7]
+                    fechafin = alquiler_data[8]   
+
+                        # Formatear como "dato1,dato2,dato3,dato4,dato5,dato6"
+                    alquiler = f"{descripción},{capacidad},{ubicacion},{amenidades},{precio},{reglas},{fechainicio},{fechafin}"
                     alquileres.append(alquiler)
 
-            # Devolver todos los alquileres como una cadena separada por saltos de línea
+
             return "\n".join(alquileres)  # Cada alquiler en una nueva línea
 
         except FileNotFoundError:
@@ -191,15 +188,15 @@ class ChatServer:
         except Exception as e:
             return f"Error al leer los alquileres: {e}\n"
 
-    def verificarLogin(self, dato1_cliente, segundo_dato_cliente):
+    def verificarLogin(self, dato1_cliente, dato2_cliente):
         try:
             with open('datos.txt', 'rb') as file:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
                     decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
                     stored_parts = decrypted_message.split(",")
-                    if (segundo_dato_cliente == stored_parts[1] and
-                            (dato1_cliente == stored_parts[2] or dato1_cliente == stored_parts[3])):
+                    if (dato1_cliente == stored_parts[1] and
+                            (dato2_cliente == stored_parts[2] or dato2_cliente == stored_parts[3] or dato2_cliente == stored_parts[4])):
                         return True
             return False
         except FileNotFoundError:

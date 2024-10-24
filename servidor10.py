@@ -133,7 +133,7 @@ class ChatServer:
                        plain_text_content=content
                        )
         try:
-            sg = SendGridAPIClient('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')  
+            #sg = SendGridAPIClient('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')  
             response = sg.send(message)
             print(f"Correo enviado: {response.status_code}")
         except Exception as e:

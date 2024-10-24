@@ -19,7 +19,6 @@ class ChatServer:
         self.pending_confirmations = {}  # Almacenar las confirmaciones pendientes
         self.contrasena= None
         self.correo= None
-        # Cargar clave de cifrado existente
         self.key = self.load_key()
         self.cipher = Fernet(self.key)
 
@@ -50,7 +49,7 @@ class ChatServer:
     def handle_client(self, client_socket):
         while True:
             try:
-                message = client_socket.recv(1024).decode('utf-8').strip()
+                message = client_socket.recv(4096).decode('utf-8').strip()
                 if message:
                     print(f"Cliente dice: {message}")
                     if message.startswith("GET"):
@@ -74,15 +73,21 @@ class ChatServer:
                             response = "Enviado\n"
                         else:
                             response = "Fallo\n"
-
+                    elif tipo_mensaje == "alquilar":
+                        self.write_encrypted_message_to_file(message.strip(),"alquileres.txt")
+                        response ="true\n"
+                    elif tipo_mensaje == "publicar":
+                        self.write_encrypted_message_to_file(message.strip(),"propiedades.txt")
+                        response ="true\n"
                     elif tipo_mensaje == "leds":
                         self.conexionArduino(message_parts[1])
-
+                    elif tipo_mensaje == "obtener_alquileres":
+                        response = self.obtener_alquileres() 
                     elif tipo_mensaje == "registro":
                         if self.handle_registration(message_parts):
                             response = "false\n"
                         else:
-                            self.write_encrypted_message_to_file(message.strip())
+                            self.write_encrypted_message_to_file(message.strip(),"datos.txt")
                             response = "true\n"
                     elif tipo_mensaje == "login":
                         if self.verificarLogin(message_parts[1], message_parts[2]):
@@ -141,13 +146,50 @@ class ChatServer:
         if self.is_message_in_encrypted_file2(email, username):
             return True  # Ya existe un registro
         else:
-            self.write_encrypted_message_to_file(",".join(message_parts))
+            self.write_encrypted_message_to_file(",".join(message_parts),"datos.txt")
             return False
 
-    def write_encrypted_message_to_file(self, message):
-        encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
-        with open('datos.txt', 'ab') as file:
-            file.write(encrypted_message + b'\n')
+    def write_encrypted_message_to_file(self, message, file):
+        try:
+            # Cifra el mensaje
+            encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
+            # Abre el archivo en modo binario para agregar el mensaje cifrado
+            with open(file, 'ab') as file:
+                # Escribe el mensaje cifrado en el archivo y añade una nueva línea
+                file.write(encrypted_message + b'\n')
+        except Exception as e:
+            print(f"Error al escribir en el archivo: {e}")
+
+    def obtener_alquileres(self):
+        try:
+            alquileres = []
+            with open('propiedades.txt', 'rb') as file:
+                encrypted_lines = file.readlines()
+                for encrypted_line in encrypted_lines:
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    alquiler_data = decrypted_message.split(",")  # Suponiendo que los datos están separados por comas
+                    
+                    # Validar que hay suficientes datos
+                    
+                        # Extraer datos necesarios
+                    descripción = alquiler_data[1]  # "publi01", "publi02", ...
+                    capacidad = alquiler_data[2]  # "4", "7", "10"
+                    ubicacion = alquiler_data[3]  # [V36V+H84, Provincia de Cartago, ...]
+                    amenidades =  alquiler_data[4]    #",".join(alquiler_data[4:-2])  # Unir amenidades en caso de que haya varias
+                    precio = alquiler_data[5]  # "3226", "4233", ...
+                    reglas = alquiler_data[6]  # "regla01", "regla02", ...
+
+                        # Formatear como "alquiler1,dato1,dato2,dato3,dato4,dato5,dato6"
+                    alquiler = f"{descripción},{capacidad},{ubicacion},{amenidades},{precio},{reglas}"
+                    alquileres.append(alquiler)
+
+            # Devolver todos los alquileres como una cadena separada por saltos de línea
+            return "\n".join(alquileres)  # Cada alquiler en una nueva línea
+
+        except FileNotFoundError:
+            return "Error: No se encontró el archivo de alquileres\n"
+        except Exception as e:
+            return f"Error al leer los alquileres: {e}\n"
 
     def verificarLogin(self, dato1_cliente, segundo_dato_cliente):
         try:

@@ -132,9 +132,9 @@ class ChatServer:
                        plain_text_content=content
                        )
         try:
-
-            #response = sg.send(message)
-            print(f"Correo enviado: {"response.status_code"}")
+            sg = SendGridAPIClient('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')  
+            response = sg.send(message)
+            print(f"Correo enviado: {response.status_code}")
         except Exception as e:
             print(f"Error al enviar correo: {e}")
 

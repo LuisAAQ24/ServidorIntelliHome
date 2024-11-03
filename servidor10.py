@@ -21,17 +21,21 @@ class ChatServer:
         self.correo= None
         self.key = self.load_key()
         self.cipher = Fernet(self.key)
-
+        self.client_socket= ""
         self.thread = threading.Thread(target=self.accept_connections)
         self.thread.start()
+
         puertoSerial = "COM5"
         try:
             self.arduino = serial.Serial(puertoSerial, 9600)
             print(f"Conectado a Arduino en el puerto {puertoSerial}")
+            self.thread_arduino = threading.Thread(target=self.mensaje_arduino)
+            self.thread_arduino.start() 
         except serial.SerialException as e:
             print(f"Error al conectar con Arduino: {e}")
         except Exception as e:
             print(f"Otro error: {e}")
+
     def load_key(self):
         try:
             with open('clave.key', 'rb') as key_file:
@@ -43,6 +47,7 @@ class ChatServer:
         while True:
             client_socket, addr = self.server_socket.accept()
             self.clients.append(client_socket)
+            self.client_socket= client_socket
             print(f"Conexión de {addr}")
             threading.Thread(target=self.handle_client, args=(client_socket,)).start()
 
@@ -265,6 +270,20 @@ class ChatServer:
         except FileNotFoundError:
             print("Error: El archivo de datos no se encuentra.")
 
-
+    def mensaje_arduino(self):
+        while True:
+            try:
+                ino_message = self.arduino.read_until(b"\n").decode("utf-8").strip()
+                if ino_message:
+                    print(f"Mensaje de Arduino: {ino_message}")
+                    # Enviar el mensaje solo al último cliente conectado
+                    if self.client_socket:
+                        try:
+                            print(f"Mensaje de Arduino: {ino_message}")
+                            self.client_socket.send(ino_message.encode('utf-8'))
+                        except Exception as e:
+                            print(f"Error al enviar mensaje al cliente: {e}")
+            except Exception as e:
+                print(f"Error al leer del Arduino: {e}")
 if __name__ == "__main__":
     server = ChatServer()

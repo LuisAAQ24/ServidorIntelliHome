@@ -4,13 +4,18 @@
 #define PIN_LED3 11
 #define PIN_LED4 9
 #define PIN_LED5 8
-
+#define PIN_LLAMA 7
+#define PIN_HUMEDAD A0
+#define PIN_MOVIMIENTO 6
 // Variables para almacenar el estado de cada LED
 bool led1State = false;
 bool led2State = false;
 bool led3State = false;
 bool led4State = false;
 bool led5State = false;
+bool flameSensor;
+bool fire;
+
 
 String serverMessage = "";  // Inicializa la variable para los mensajes del servidor
 
@@ -22,9 +27,30 @@ void setup() {
   pinMode(PIN_LED3, OUTPUT);
   pinMode(PIN_LED4, OUTPUT);
   pinMode(PIN_LED5, OUTPUT);
+  pinMode(PIN_LLAMA, INPUT);
+  pinMode(PIN_MOVIMIENTO, INPUT);
 }
 
 void loop() {
+  flameSensor = digitalRead(PIN_LLAMA);
+  if(flameSensor && !fire){
+    Serial.write("Llama detectada\n");
+    fire = true;
+  }
+   if(!flameSensor && fire){
+    Serial.write("Llama apagada\n");
+    fire = false;
+  }
+  int humedadValue = analogRead(PIN_HUMEDAD);  // Lee el valor analógico del sensor de humedad
+  float humedadPorciento = (humedadValue / 10.23);
+  Serial.println(String(humedadPorciento) + "%"); 
+  int movimientoValue = digitalRead(PIN_MOVIMIENTO); // Lee el valor del sensor
+  if (movimientoValue == HIGH) { // Si se detecta movimiento
+    Serial.println("Movimiento detectado!");
+  } else {
+    Serial.println("Sin movimiento.");
+  }
+  
   // Verifica si hay datos disponibles en el puerto serial
   if (Serial.available() > 0) {
     // Lee el mensaje enviado desde el servidor
@@ -48,4 +74,5 @@ void loop() {
       digitalWrite(PIN_LED5, led5State ? HIGH : LOW);  // Enciende o apaga el LED 5
     }
   }
+  delay(200);
 }

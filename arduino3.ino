@@ -7,6 +7,7 @@
 #define PIN_LLAMA 7
 #define PIN_HUMEDAD A0
 #define PIN_MOVIMIENTO 6
+
 // Variables para almacenar el estado de cada LED
 bool led1State = false;
 bool led2State = false;
@@ -14,8 +15,10 @@ bool led3State = false;
 bool led4State = false;
 bool led5State = false;
 bool flameSensor;
-bool fire;
-
+bool fire = false;
+bool movimientoState = false;  // Estado actual del sensor de movimiento
+bool lastMovimientoState = false;  // Estado anterior del sensor de movimiento
+float lastHumedadPorciento = 0.0;  // Último valor de humedad
 
 String serverMessage = "";  // Inicializa la variable para los mensajes del servidor
 
@@ -33,24 +36,34 @@ void setup() {
 
 void loop() {
   flameSensor = digitalRead(PIN_LLAMA);
-  if(flameSensor && !fire){
+  if (flameSensor && !fire) {
     Serial.write("Llama detectada\n");
     fire = true;
   }
-   if(!flameSensor && fire){
+  if (!flameSensor && fire) {
     Serial.write("Llama apagada\n");
     fire = false;
   }
+
   int humedadValue = analogRead(PIN_HUMEDAD);  // Lee el valor analógico del sensor de humedad
   float humedadPorciento = (humedadValue / 10.23);
-  Serial.println(String(humedadPorciento) + "%"); 
-  int movimientoValue = digitalRead(PIN_MOVIMIENTO); // Lee el valor del sensor
-  if (movimientoValue == HIGH) { // Si se detecta movimiento
-    Serial.println("Movimiento detectado!");
-  } else {
-    Serial.println("Sin movimiento.");
+
+  // Solo envía un mensaje si hay un cambio significativo en la humedad
+  if (abs(humedadPorciento - lastHumedadPorciento) > 1.0) {  // Ajusta el valor de 1.0 según la sensibilidad deseada
+    Serial.println(String(humedadPorciento) + "%");
+    lastHumedadPorciento = humedadPorciento;  // Actualiza el último valor de humedad
   }
-  
+
+  movimientoState = digitalRead(PIN_MOVIMIENTO); // Lee el valor del sensor de movimiento
+  if (movimientoState != lastMovimientoState) { // Si hay un cambio en el estado del sensor de movimiento
+    if (movimientoState == HIGH) { // Si se detecta movimiento
+      Serial.println("Movimiento detectado!");
+    } else {
+      Serial.println("Sin movimiento.");
+    }
+    lastMovimientoState = movimientoState; // Actualiza el estado anterior
+  }
+
   // Verifica si hay datos disponibles en el puerto serial
   if (Serial.available() > 0) {
     // Lee el mensaje enviado desde el servidor

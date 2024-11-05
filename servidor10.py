@@ -6,7 +6,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import uuid  # Para generar un token único
 from urllib.parse import urlparse, parse_qs  # Para procesar la URL
-
+import queue
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
         print(host, port)
@@ -21,10 +21,12 @@ class ChatServer:
         self.correo= None
         self.key = self.load_key()
         self.cipher = Fernet(self.key)
-        self.client_socket= ""
+        self.client_socket= False
         self.thread = threading.Thread(target=self.accept_connections)
         self.thread.start()
-
+        self.mensaje_queue = queue.Queue()  # Cola para almacenar mensajes
+        self.thread_envio = threading.Thread(target=self.enviar_mensaje_cliente)
+        self.thread_envio.start()
         puertoSerial = "COM5"
         try:
             self.arduino = serial.Serial(puertoSerial, 9600)
@@ -103,7 +105,7 @@ class ChatServer:
                         response = "tipo de mensaje no válido\n"
 
                     print(f"Respuesta enviada: {response}")
-                    client_socket.send(response.encode('utf-8'))
+                    self.mensaje_queue.put((client_socket, response))
                 else:
                     break
 
@@ -114,6 +116,14 @@ class ChatServer:
             except Exception as e:
                 print(f"Error al manejar el cliente: {e}")
                 break
+    def enviar_mensaje_cliente(self):
+        while True:
+            client_socket, mensaje = self.mensaje_queue.get()  # Obtén el mensaje de la cola
+            try:
+                client_socket.send(mensaje.encode('utf-8'))
+                print(f"Mensaje enviado al cliente: {mensaje}")
+            except Exception as e:
+                print(f"Error al enviar mensaje al cliente: {e}")
 
     def verificarCorreo(self, correo):
         """Verifica si el correo existe en el archivo de datos."""
@@ -182,7 +192,7 @@ class ChatServer:
                     fechafin = alquiler_data[8]   
 
                         # Formatear como "dato1,dato2,dato3,dato4,dato5,dato6"
-                    alquiler = f"{descripción},{capacidad},{ubicacion},{amenidades},{precio},{reglas},{fechainicio},{fechafin}"
+                    alquiler = f"{descripción},{capacidad},{ubicacion},{amenidades},{precio},{reglas},{fechainicio},{fechafin}\n"
                     alquileres.append(alquiler)
 
 
@@ -278,9 +288,11 @@ class ChatServer:
                     print(f"Mensaje de Arduino: {ino_message}")
                     # Enviar el mensaje solo al último cliente conectado
                     if self.client_socket:
+
                         try:
-                            print(f"Mensaje de Arduino: {ino_message}")
-                            self.client_socket.send(ino_message.encode('utf-8'))
+                            self.mensaje_queue.put((self.client_socket, ino_message+"\n"))
+                            print(f"Mensaje de Arduino: {ino_message} hacia {self.client_socket}")
+
                         except Exception as e:
                             print(f"Error al enviar mensaje al cliente: {e}")
             except Exception as e:

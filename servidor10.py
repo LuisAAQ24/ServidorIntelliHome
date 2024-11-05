@@ -7,6 +7,7 @@ from sendgrid.helpers.mail import Mail
 import uuid  # Para generar un token único
 from urllib.parse import urlparse, parse_qs  # Para procesar la URL
 import queue
+
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
         print(host, port)
@@ -71,8 +72,8 @@ class ChatServer:
                             
                             # Verificar si el correo existe
                         if self.verificarCorreo(self.correo):
-                                # Omitir token y enviar correo directamente
-                            confirmation_link = f"http://172.18.173.122:6060/confirm"
+
+                            confirmation_link = f"http://172.18.116.167:6060/confirm"
                             subject = "Confirmación de Cambios de Contraseña"
                             content = f"Se ha solicitado un cambio de contraseña. Por favor, confirma haciendo clic en el siguiente enlace: {confirmation_link}"
                             self.send_email(self.correo, subject, content)
@@ -148,9 +149,9 @@ class ChatServer:
                        plain_text_content=content
                        )
         try:
-            sg = SendGridAPIClient('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')  
-            response = sg.send(message)
-            print(f"Correo enviado: {response.status_code}")
+
+            #response = sg.send(message)
+            print(f"Correo enviado: {"response.status_code"}")
         except Exception as e:
             print(f"Error al enviar correo: {e}")
 

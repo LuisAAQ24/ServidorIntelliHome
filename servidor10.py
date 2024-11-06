@@ -11,6 +11,7 @@ from twilio.rest import Client
 import time
 
 TWILIO_ACCOUNT_SID = 'AC152553b06939e54aa16c46cce6cfd26c' # SID de la cuenta de Twilio
+TWILIO_AUTH_TOKEN = '003f27ddd567f38aa16166c38abf6358' # Token de autenticación de Twilio
 TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886' # Número de Twilio
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):

@@ -7,7 +7,12 @@ from sendgrid.helpers.mail import Mail
 import uuid  # Para generar un token único
 from urllib.parse import urlparse, parse_qs  # Para procesar la URL
 import queue
+from twilio.rest import Client
+import time
 
+TWILIO_ACCOUNT_SID = 'AC152553b06939e54aa16c46cce6cfd26c' # SID de la cuenta de Twilio
+TWILIO_AUTH_TOKEN = '003f27ddd567f38aa16166c38abf6358' # Token de autenticación de Twilio
+TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886' # Número de Twilio
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
         print(host, port)
@@ -84,6 +89,8 @@ class ChatServer:
                     elif tipo_mensaje == "alquilar":
                         self.write_encrypted_message_to_file(message.strip(),"alquileres.txt")
                         response ="true\n"
+                        telefono = self.obtener_numero_telefono(message_parts[1])
+                        self.mensaje_whatsapp(telefono, "reservación")
                     elif tipo_mensaje == "publicar":
                         self.write_encrypted_message_to_file(message.strip(),"propiedades.txt")
                         response ="true\n"
@@ -102,6 +109,10 @@ class ChatServer:
                             response = "true\n"
                         else:
                             response = "false\n"
+                    elif tipo_mensaje == "desastre":
+                        telefono = self.obtener_numero_telefono(message_parts[1])
+                        self.mensaje_whatsapp(telefono, message_parts[2])
+                        response = "true\n"            
                     else:
                         response = "tipo de mensaje no válido\n"
 
@@ -298,5 +309,41 @@ class ChatServer:
                             print(f"Error al enviar mensaje al cliente: {e}")
             except Exception as e:
                 print(f"Error al leer del Arduino: {e}")
+                
+    def obtener_numero_telefono(self, contraseña):
+        """Obtiene el número de teléfono del usuario basado en su correo."""
+        try:
+            with open('datos.txt', 'rb') as file:
+                encrypted_lines = file.readlines()
+                for encrypted_line in encrypted_lines:
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    stored_parts = decrypted_message.split(",")
+                    if contraseña == stored_parts[1]:  # Contraseña en la posición correspondiente
+                        return stored_parts[4]  # Número de teléfono en la posición correspondiente
+            return None
+        except FileNotFoundError:
+            return None 
+        
+    def mensaje_whatsapp(self, numero_telefono, tipo_notificacion):
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        if tipo_notificacion == "reservación":
+            message = client.messages.create(
+                body="Alerta: Se ha confirmado la reservación con éxito",
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=f'whatsapp:{numero_telefono}'
+                )
+        if tipo_notificacion == "fuego":
+            message = client.messages.create(
+                body="Alerta: Se ha detectado un incendio.",
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=f'whatsapp:+506{numero_telefono}'
+            )
+        if tipo_notificacion == "sismo":    
+            message = client.messages.create(
+                body="Alerta: Se ha detectado un sismo.",
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=f'whatsapp:{numero_telefono}'
+            )
+              
 if __name__ == "__main__":
     server = ChatServer()

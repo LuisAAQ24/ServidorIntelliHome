@@ -7,7 +7,11 @@ def desencriptar_archivo_por_lineas(archivo, clave):
     with open(archivo, 'rb') as file:
         for linea in file:
             try:
+                if not linea.strip():
+                    print("vacio")
+                    continue
                 contenido_desencriptado = cipher_suite.decrypt(linea.strip())
+
                 print(contenido_desencriptado.decode('utf-8'))
             except Exception as e:
                 print(f"Error al desencriptar la línea: {e}")

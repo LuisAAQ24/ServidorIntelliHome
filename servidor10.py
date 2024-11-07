@@ -7,7 +7,12 @@ from sendgrid.helpers.mail import Mail
 import uuid  # Para generar un token único
 from urllib.parse import urlparse, parse_qs  # Para procesar la URL
 import queue
+from twilio.rest import Client
+import time
 
+TWILIO_ACCOUNT_SID = 'AC152553b06939e54aa16c46cce6cfd26c' # SID de la cuenta de Twilio
+TWILIO_AUTH_TOKEN = '003f27ddd567f38aa16166c38abf6358' # Token de autenticación de Twilio
+TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886' # Número de Twilio
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
         print(host, port)
@@ -73,7 +78,7 @@ class ChatServer:
                             # Verificar si el correo existe
                         if self.verificarCorreo(self.correo):
 
-                            confirmation_link = f"http://172.18.116.167:6060/confirm"
+                            confirmation_link = f"http://172.18.65.141:6060/confirm"
                             subject = "Confirmación de Cambios de Contraseña"
                             content = f"Se ha solicitado un cambio de contraseña. Por favor, confirma haciendo clic en el siguiente enlace: {confirmation_link}"
                             self.send_email(self.correo, subject, content)
@@ -84,6 +89,8 @@ class ChatServer:
                     elif tipo_mensaje == "alquilar":
                         self.write_encrypted_message_to_file(message.strip(),"alquileres.txt")
                         response ="true\n"
+                        telefono = self.obtener_numero_telefono(message_parts[1])
+                        self.mensaje_whatsapp(telefono, "reservación")
                     elif tipo_mensaje == "publicar":
                         self.write_encrypted_message_to_file(message.strip(),"propiedades.txt")
                         response ="true\n"
@@ -92,6 +99,7 @@ class ChatServer:
                     elif tipo_mensaje == "obtener_alquileres":
                         response = self.obtener_alquileres() 
                     elif tipo_mensaje == "registro":
+                        print("registro1")
                         if self.handle_registration(message_parts):
                             response = "false\n"
                         else:
@@ -102,6 +110,10 @@ class ChatServer:
                             response = "true\n"
                         else:
                             response = "false\n"
+                    elif tipo_mensaje == "desastre":
+                        telefono = self.obtener_numero_telefono(message_parts[1])
+                        self.mensaje_whatsapp(telefono, message_parts[2])
+                        response = "true\n"            
                     else:
                         response = "tipo de mensaje no válido\n"
 
@@ -114,9 +126,12 @@ class ChatServer:
                 # Manejar el error cuando el cliente cierra la conexión abruptamente
                 print("El cliente cerró la conexión abruptamente.")
                 break
+            except IndexError as e:
+                print(f"Error de índice en el mensaje de registro: {e}")
+            except ValueError as e:
+                print(f"Error de valor en el mensaje de registro: {e}")
             except Exception as e:
-                print(f"Error al manejar el cliente: {e}")
-                break
+                print(f"Error inesperado al manejar el cliente: {e}")
     def enviar_mensaje_cliente(self):
         while True:
             client_socket, mensaje = self.mensaje_queue.get()  # Obtén el mensaje de la cola
@@ -156,21 +171,34 @@ class ChatServer:
             print(f"Error al enviar correo: {e}")
 
     def handle_registration(self, message_parts):
+        print("entra a registro2")
         password = message_parts[1]
+        print("1")
         email = message_parts[2]
+        print(2)
         username = message_parts[3]
+        print(3)
         if self.is_message_in_encrypted_file2(email, username):
+            print(4)
             return True  # Ya existe un registro
         else:
+            print(5)
             self.write_encrypted_message_to_file(",".join(message_parts),"datos.txt")
+            print(6)
             return False
 
     def write_encrypted_message_to_file(self, message, file):
+        print("registro3")
         try:
+            print(1)
             encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
+            print(2)
             with open(file, 'ab') as file:
+                print(3)
                 file.write(encrypted_message + b'\n')
+                print(4)
         except Exception as e:
+            print(5)
             print(f"Error al escribir en el archivo: {e}")
 
     def obtener_alquileres(self):
@@ -209,6 +237,8 @@ class ChatServer:
             with open('datos.txt', 'rb') as file:
                 encrypted_lines = file.readlines()
                 for encrypted_line in encrypted_lines:
+                    if not encrypted_line.strip():
+                        continue
                     decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
                     stored_parts = decrypted_message.split(",")
                     if (dato1_cliente == stored_parts[1] and
@@ -219,13 +249,24 @@ class ChatServer:
             return False
 
     def is_message_in_encrypted_file2(self, dato1_cliente, segundo_dato_cliente):
+        print("registro5")
         try:
+            print(1)
             with open('datos.txt', 'rb') as file:
+                print(2)
                 encrypted_lines = file.readlines()
+                print(3)
                 for encrypted_line in encrypted_lines:
+                    print(4)
+                    if not encrypted_line.strip():
+                        print("vacio")
+                        continue
                     decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    print(5)
                     stored_parts = decrypted_message.split(",")
+                    print(6)
                     if (segundo_dato_cliente == stored_parts[2] or dato1_cliente == stored_parts[3]):
+                        print(7)
                         return True
             return False
         except FileNotFoundError:
@@ -298,5 +339,48 @@ class ChatServer:
                             print(f"Error al enviar mensaje al cliente: {e}")
             except Exception as e:
                 print(f"Error al leer del Arduino: {e}")
+                
+    def obtener_numero_telefono(self, contraseña):
+        """Obtiene el número de teléfono del usuario basado en su contraseña."""
+        try:
+            with open('datos.txt', 'rb') as file:
+                encrypted_lines = file.readlines()
+                for encrypted_line in encrypted_lines:
+                    if not encrypted_line.strip():
+                        print("vacio")
+                        continue
+                    decrypted_message = self.cipher.decrypt(encrypted_line.strip()).decode('utf-8')
+                    stored_parts = decrypted_message.split(",")
+                    if contraseña == stored_parts[1]:  # Contraseña en la posición correspondiente
+                        return stored_parts[4]  # Número de teléfono en la posición correspondiente
+            return None
+        except FileNotFoundError:
+            return None 
+        
+    def mensaje_whatsapp(self, numero_telefono, tipo_notificacion):
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        try:
+            if tipo_notificacion == "reservación":
+                message = client.messages.create(
+                    body="Alerta: Se ha confirmado la reservación con éxito",
+                    from_=TWILIO_WHATSAPP_NUMBER,
+                    to=f'whatsapp:+506{numero_telefono}'
+                    )
+            if tipo_notificacion == "fuego":
+                message = client.messages.create(
+                    body="Alerta: Se ha detectado un incendio.",
+                    from_=TWILIO_WHATSAPP_NUMBER,
+                    to=f'whatsapp:+506{numero_telefono}'
+                )
+            if tipo_notificacion == "sismo":    
+                message = client.messages.create(
+                    body="Alerta: Se ha detectado un sismo.",
+                    from_=TWILIO_WHATSAPP_NUMBER,
+                    to=f'whatsapp:+506{numero_telefono}'
+                )
+        except Exception as e:
+            print(f"Error en la solicitud: {e}")
+
+              
 if __name__ == "__main__":
     server = ChatServer()

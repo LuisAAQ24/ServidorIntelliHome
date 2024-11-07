@@ -36,6 +36,8 @@ bool servoOpened = false; // Estado actual del servo
 String serverMessage = "";  // Inicializa la variable para los mensajes del servidor
 char delimitador = '_';
 
+unsigned long lastHumedadSendTime = 0;  // Variable para controlar el intervalo de envío de humedad
+
 void setup() {
   Serial.begin(9600);
   pinMode(PIN_LED1, OUTPUT);
@@ -63,16 +65,18 @@ void loop() {
     delay(2000);
   }
 
-  float h = dht.readHumidity();
-  if (isnan(h)) {
-    Serial.println("Error al leer del sensor DHT!");
-  } else {
-    if (abs(h - lastHumedadPorciento) > 1.0) {
+  // Verificar si han pasado 2 segundos para enviar la humedad
+  if (millis() - lastHumedadSendTime >= 2000) {
+    float h = dht.readHumidity();
+    if (isnan(h)) {
+      Serial.println("Error al leer del sensor DHT!");
+    } else {
       Serial.print("Humedad: ");
       Serial.print(h);
       Serial.println(" %");
       lastHumedadPorciento = h;
     }
+    lastHumedadSendTime = millis();  // Actualizar el tiempo del último envío
   }
 
   movimientoState = digitalRead(PIN_MOVIMIENTO);

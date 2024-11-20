@@ -65,19 +65,7 @@ void loop() {
     delay(2000);
   }
 
-  // Verificar si han pasado 2 segundos para enviar la humedad
-  if (millis() - lastHumedadSendTime >= 2000) {
-    float h = dht.readHumidity();
-    if (isnan(h)) {
-      Serial.println("Error al leer del sensor DHT!");
-    } else {
-      Serial.print("Humedad: ");
-      Serial.print(h);
-      Serial.println(" %");
-      lastHumedadPorciento = h;
-    }
-    lastHumedadSendTime = millis();  // Actualizar el tiempo del último envío
-  }
+
 
   movimientoState = digitalRead(PIN_MOVIMIENTO);
   if (movimientoState && !sismo) {
@@ -93,7 +81,16 @@ void loop() {
 
   if (Serial.available() > 0) {
     serverMessage = Serial.readStringUntil('\n');
-
+    if (serverMessage.equals("humedad")) {
+      float h = dht.readHumidity();
+      if (isnan(h)) {
+        Serial.println("Error al leer del sensor DHT!");
+      } else {
+        Serial.print("Humedad: ");
+        Serial.print(h);
+        Serial.println(" %");
+     }
+    }
     if (serverMessage.equals("LED1")) {
       led1State = !led1State;
       digitalWrite(PIN_LED1, led1State ? HIGH : LOW);

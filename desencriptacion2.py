@@ -15,4 +15,4 @@ def desencriptar_archivo_por_lineas(archivo, clave):
                 print(contenido_desencriptado.decode('utf-8'))
             except Exception as e:
                 print(f"Error al desencriptar la línea: {e}")
-desencriptar_archivo_por_lineas("datos.txt","pQXGLozTYThpxI6mbfbadXo3gTx4wYO9_E0vqGUMTpg=")
+desencriptar_archivo_por_lineas("propiedades.txt","pQXGLozTYThpxI6mbfbadXo3gTx4wYO9_E0vqGUMTpg=")

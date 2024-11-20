@@ -4,15 +4,13 @@ import serial
 from cryptography.fernet import Fernet
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-import uuid  # Para generar un token único
 from urllib.parse import urlparse, parse_qs  # Para procesar la URL
 import queue
 from twilio.rest import Client
-import time
 
 TWILIO_ACCOUNT_SID = 'AC152553b06939e54aa16c46cce6cfd26c' # SID de la cuenta de Twilio
 TWILIO_AUTH_TOKEN = '003f27ddd567f38aa16166c38abf6358' # Token de autenticación de Twilio
-TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886' # Número de Twilio
+TWILIO_WHATSAPP_NUMBER = 'whatsapp:+15123593784' # Número de Twilio
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=6060):
         print(host, port)
@@ -173,32 +171,20 @@ class ChatServer:
     def handle_registration(self, message_parts):
         print("entra a registro2")
         password = message_parts[1]
-        print("1")
         email = message_parts[2]
-        print(2)
         username = message_parts[3]
-        print(3)
         if self.is_message_in_encrypted_file2(email, username):
-            print(4)
             return True  # Ya existe un registro
         else:
-            print(5)
             self.write_encrypted_message_to_file(",".join(message_parts),"datos.txt")
-            print(6)
             return False
 
     def write_encrypted_message_to_file(self, message, file):
-        print("registro3")
         try:
-            print(1)
             encrypted_message = self.cipher.encrypt(message.encode('utf-8'))
-            print(2)
             with open(file, 'ab') as file:
-                print(3)
                 file.write(encrypted_message + b'\n')
-                print(4)
         except Exception as e:
-            print(5)
             print(f"Error al escribir en el archivo: {e}")
 
     def obtener_alquileres(self):
